@@ -437,6 +437,19 @@ class PydicomReader(ImageReader):
 
         """
         return has_pydicom
+    
+    def _standardize_pixel_array(self, dcm: pydicom.dataset.FileDataset) -> np.ndarray:
+        """
+        Correct DICOM pixel_array if PixelRepresentation == 1.
+
+        Taken from https://www.kaggle.com/competitions/rsna-2023-abdominal-trauma-detection/discussion/427217
+        """
+        pixel_array = dcm.pixel_array
+        if dcm.PixelRepresentation == 1:
+            bit_shift = dcm.BitsAllocated - dcm.BitsStored
+            dtype = pixel_array.dtype 
+            pixel_array = (pixel_array << bit_shift).astype(dtype) >>  bit_shift
+        return pixel_array
 
     def read(self, data: Sequence[PathLike] | PathLike, **kwargs):
         """
@@ -824,7 +837,8 @@ class PydicomReader(ImageReader):
         # process Dicom series
         if not hasattr(img, "pixel_array"):
             raise ValueError(f"dicom data: {img.filename} does not have pixel_array.")
-        data = img.pixel_array
+        # data = img.pixel_array
+        data = self._standardize_pixel_array(img) # added by A.K. from https://www.kaggle.com/competitions/rsna-2023-abdominal-trauma-detection/discussion/427217
 
         slope, offset = 1.0, 0.0
         rescale_flag = False
